@@ -49,7 +49,7 @@ def get_face_embeddings(face, face_rec_model):
 
 
 def calculate_similarity(embedding1, embedding2):
-    return np.dot(embedding1, embedding2.T)
+    return np.dot(embedding1, embedding2.T).item()
 
 
 def getEmbeddingFromCache(image_path, face_net, face_rec_model):
@@ -77,7 +77,7 @@ def compare_faces(source, target, face_net, face_rec_model):
         return False, None
 
     similarity = calculate_similarity(source_embedding, target_embedding)
-    threshold = 0.5  # 调整此阈值以控制判断为同一个人的敏感度
+    threshold = 0.6  # 调整此阈值以控制判断为同一个人的敏感度
 
     if similarity > threshold:
         return True, similarity
