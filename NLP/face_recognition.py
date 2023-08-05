@@ -9,15 +9,19 @@
 import cv2
 import numpy as np
 
+IMAGE_DIR = "/data/along/dataset/FaceDataset"
+# 图片向量缓存
+image_map = {}
+
 
 def load_face_model():
     # 加载人脸检测模型
-    prototxt_path = "./opencv_face_detector.pbtxt"
-    model_path = "./opencv_face_detector_uint8.pb"
+    prototxt_path = "NLP/opencv_face_detector.pbtxt"
+    model_path = "NLP/opencv_face_detector_uint8.pb"
     face_net = cv2.dnn.readNetFromTensorflow(model_path, prototxt_path)
 
     # 加载人脸识别模型
-    face_rec_model = cv2.dnn.readNetFromTorch("./nn4.small2.v1.t7")
+    face_rec_model = cv2.dnn.readNetFromTorch("NLP/nn4.small2.v1.t7")
 
     return face_net, face_rec_model
 
@@ -48,18 +52,31 @@ def calculate_similarity(embedding1, embedding2):
     return np.dot(embedding1, embedding2.T)
 
 
-def compare_faces(image1, image2):
-    face_net, face_rec_model = load_face_model()
-    faces1 = detect_faces(image1, face_net)
-    faces2 = detect_faces(image2, face_net)
+def getEmbeddingFromCache(image_path, face_net, face_rec_model):
+    if image_path not in image_map:
+        imageCV2 = cv2.imread("{}{}".format(IMAGE_DIR, image_path))
+        faces = detect_faces(imageCV2, face_net)
+        if len(faces) != 1:
+            return None
+        embedding = get_face_embeddings(faces[0], face_rec_model)
+        image_map[image_path] = embedding
+    else:
+        embedding = image_map[image_path]
+    return embedding
 
-    if len(faces1) != 1 or len(faces2) != 1:
+
+def compare_faces(source, target, face_net, face_rec_model):
+    if source is None or source == "" or target is None or target == "":
         return False, None
 
-    embedding1 = get_face_embeddings(faces1[0], face_rec_model)
-    embedding2 = get_face_embeddings(faces2[0], face_rec_model)
+    # add cache
+    source_embedding = getEmbeddingFromCache(source, face_net, face_rec_model)
+    target_embedding = getEmbeddingFromCache(target, face_net, face_rec_model)
 
-    similarity = calculate_similarity(embedding1, embedding2)
+    if source_embedding is None or target_embedding is None:
+        return False, None
+
+    similarity = calculate_similarity(source_embedding, target_embedding)
     threshold = 0.5  # 调整此阈值以控制判断为同一个人的敏感度
 
     if similarity > threshold:
@@ -69,13 +86,15 @@ def compare_faces(image1, image2):
 
 
 if __name__ == "__main__":
-    image1 = cv2.imread("/data/along/dataset/FaceDataset/lfw/Aaron_Peirsol/Aaron_Peirsol_0001.jpg")
-    image2 = cv2.imread("/data/along/dataset/FaceDataset/lfw/Aaron_Peirsol/Aaron_Peirsol_0004.jpg")
+    image1 = "/lfw/Aaron_Peirsol/Aaron_Peirsol_0001.jpg"
+    image2 = "/lfw/Aaron_Peirsol/Aaron_Peirsol_0002.jpg"
 
-    is_same_person, similarity_score = compare_faces(image1, image2)
+    # load model
+    face_net, face_rec_model = load_face_model()
+
+    is_same_person, similarity_score = compare_faces(image1, image2, face_net, face_rec_model)
 
     if is_same_person:
         print("是同一个人，相似度：", similarity_score)
     else:
         print("不是同一个人，相似度：", similarity_score)
-
